@@ -1,0 +1,36 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - 'master'
+    paths-ignore:
+      - '**/README.md'
+      - '**/build.yml'
+      - '**/.gitignore'
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore NEPMetadataDecryptor.slnx
+        working-directory: NEPMetadataDecryptor
+
+      - name: Build
+        run: dotnet build NEPMetadataDecryptor.slnx -c Release
+        working-directory: NEPMetadataDecryptor
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NEPMetadataDecryptor
+          path: NEPMetadataDecryptor/bin/Release/*
