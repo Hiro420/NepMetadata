@@ -4,95 +4,96 @@ namespace NEPMetadataDecryptor;
 
 internal static class MetadataVersionDetector
 {
-	public static MetadataVersionGuess Guess(ReadOnlySpan<byte> data)
-	{
-		if (data.Length < 0x20)
-			return new(31, "file too small to inspect; modern fallback");
+    public static MetadataVersionGuess Guess(ReadOnlySpan<byte> data)
+    {
+        if (data.Length < 0x20)
+            return new MetadataVersionGuess(31, "file too small to inspect; modern fallback");
 
-		uint headerSize = ReadU32(data, 0x08);
+        var headerSize = ReadU32(data, 0x08);
 
-		if (!LooksLikeMetadataHeader(data, headerSize))
-			return new(31, $"unrecognized header layout (first table at 0x{headerSize:X}); modern fallback");
+        if (!LooksLikeMetadataHeader(data, headerSize))
+            return new MetadataVersionGuess(31,
+                $"unrecognized header layout (first table at 0x{headerSize:X}); modern fallback");
 
-		return headerSize switch
-		{
-			// Older metadata layouts still contain the metadata-usage offset/count pairs
-			0x110 => new(
-				24,
-				"0x110-byte metadata header"),
+        return headerSize switch
+        {
+            // Older metadata layouts still contain the metadata-usage offset/count pairs
+            0x110 => new MetadataVersionGuess(
+                24,
+                "0x110-byte metadata header"),
 
-			// Modern metadata layouts use the smaller header
-			0x100 => new(
-				31,
-				"0x100-byte modern metadata header"),
+            // Modern metadata layouts use the smaller header
+            0x100 => new MetadataVersionGuess(
+                31,
+                "0x100-byte modern metadata header"),
 
-			// Aaaand the fallback
-			_ => new(
-				31,
-				$"valid-looking metadata header of size 0x{headerSize:X}")
-		};
-	}
+            // Aaaand the fallback
+            _ => new MetadataVersionGuess(
+                31,
+                $"valid-looking metadata header of size 0x{headerSize:X}")
+        };
+    }
 
-	private static bool LooksLikeMetadataHeader(
-		ReadOnlySpan<byte> data,
-		uint headerSize)
-	{
-		if (headerSize < 0x80 ||
-			headerSize > 0x200 ||
-			(headerSize & 3) != 0 ||
-			headerSize >= data.Length)
-		{
-			return false;
-		}
+    private static bool LooksLikeMetadataHeader(
+        ReadOnlySpan<byte> data,
+        uint headerSize)
+    {
+        if (headerSize < 0x80 ||
+            headerSize > 0x200 ||
+            (headerSize & 3) != 0 ||
+            headerSize >= data.Length)
+            return false;
 
-		const int commonHeaderEnd = 0xB8;
+        const int commonHeaderEnd = 0xB8;
 
-		if (data.Length < commonHeaderEnd)
-			return false;
+        if (data.Length < commonHeaderEnd)
+            return false;
 
-		int validPairs = 0;
-		int checkedPairs = 0;
+        var validPairs = 0;
+        var checkedPairs = 0;
 
-		for (int offset = 0x08;
-			 offset + 8 <= commonHeaderEnd;
-			 offset += 8)
-		{
-			uint tableOffset = ReadU32(data, offset);
-			uint tableSize = ReadU32(data, offset + 4);
+        for (var offset = 0x08;
+             offset + 8 <= commonHeaderEnd;
+             offset += 8)
+        {
+            var tableOffset = ReadU32(data, offset);
+            var tableSize = ReadU32(data, offset + 4);
 
-			checkedPairs++;
+            checkedPairs++;
 
-			if (tableOffset == 0 && tableSize == 0)
-			{
-				validPairs++;
-				continue;
-			}
+            if (tableOffset == 0 && tableSize == 0)
+            {
+                validPairs++;
+                continue;
+            }
 
-			if (tableOffset < headerSize)
-				continue;
+            if (tableOffset < headerSize)
+                continue;
 
-			if (tableOffset > data.Length)
-				continue;
+            if (tableOffset > data.Length)
+                continue;
 
-			if (tableSize > data.Length)
-				continue;
+            if (tableSize > data.Length)
+                continue;
 
-			if ((ulong)tableOffset + tableSize > (ulong)data.Length)
-				continue;
+            if ((ulong)tableOffset + tableSize > (ulong)data.Length)
+                continue;
 
-			validPairs++;
-		}
+            validPairs++;
+        }
 
-		return validPairs >= checkedPairs - 2;
-	}
+        return validPairs >= checkedPairs - 2;
+    }
 
-	private static uint ReadU32(
-		ReadOnlySpan<byte> data,
-		int offset) =>
-		BinaryPrimitives.ReadUInt32LittleEndian(
-			data.Slice(offset, 4));
+    private static uint ReadU32(
+        ReadOnlySpan<byte> data,
+        int offset)
+    {
+        return BinaryPrimitives.ReadUInt32LittleEndian(
+            data.Slice(offset, 4));
+    }
 }
 
 internal readonly record struct MetadataVersionGuess(
-	uint Version,
-	string Reason);
+    uint Version,
+    string Reason);
